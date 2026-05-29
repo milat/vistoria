@@ -1,0 +1,2140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vistoria</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: #f4f6f8;
+    }
+
+    .app-header {
+      background: #113d5c;
+      color: #fff;
+    }
+
+    .section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: .75rem;
+    }
+
+    .room-card,
+    .sub-card {
+      border: 1px solid #d8dee6;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .sub-card {
+      background: #fbfcfd;
+    }
+
+    .form-label {
+      font-weight: 600;
+      font-size: .9rem;
+    }
+
+    .btn-icon {
+      min-width: 2.5rem;
+    }
+
+    .group-toggle {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      padding: 0;
+      text-align: left;
+      width: 100%;
+    }
+
+    .group-toggle::before {
+      content: '▾';
+      display: inline-block;
+      margin-right: .35rem;
+      transition: transform .15s ease-in-out;
+    }
+
+    .group-toggle[aria-expanded="false"]::before {
+      transform: rotate(-90deg);
+    }
+
+    .group-toggle[data-completed="true"]::after {
+      content: '✓';
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.25rem;
+      height: 1.25rem;
+      margin-left: .5rem;
+      border-radius: 50%;
+      background: #198754;
+      color: #fff;
+      font-size: .8rem;
+      font-weight: 700;
+      vertical-align: middle;
+    }
+
+    textarea.form-control {
+      min-height: auto;
+    }
+
+    .report-preview {
+      max-height: 55vh;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #f8f9fa;
+      border: 1px solid #d8dee6;
+      border-radius: 8px;
+      padding: 1rem;
+      font-size: .95rem;
+    }
+
+  </style>
+</head>
+<body>
+  <header class="app-header py-3 mb-3">
+    <div class="container d-flex align-items-center justify-content-between gap-3">
+      <h1 class="h4 mb-0">Vistoria</h1>
+      <div class="dropdown">
+        <button class="btn btn-outline-light btn-sm" type="button" id="mainMenuBtn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Abrir menu">
+          ☰
+        </button>
+        <div class="dropdown-menu dropdown-menu-end" aria-labelledby="mainMenuBtn">
+          <button type="button" id="importInspectionBtn" class="dropdown-item">Importar Vistoria</button>
+          <hr class="dropdown-divider">
+          <button type="button" id="clearDraftMenuBtn" class="dropdown-item text-danger">Limpar dados</button>
+        </div>
+      </div>
+      <input type="file" id="importInspectionInput" class="d-none" accept="application/json,.json">
+    </div>
+  </header>
+
+  <main class="container pb-5">
+    <form id="inspectionForm" class="vstack gap-3">
+      <div class="room-card p-3">
+        <label for="inspectionName" class="form-label">Nome da vistoria</label>
+        <input type="text" id="inspectionName" class="form-control" data-field="inspectionName" placeholder="Ex.: Vistoria apartamento 101">
+      </div>
+
+      <div id="roomsContainer" class="vstack gap-3"></div>
+
+      <button type="button" id="addRoomBtn" class="btn btn-primary w-100">
+        Adicionar novo cômodo
+      </button>
+
+      <button type="button" id="generateReportBtn" class="btn btn-success w-100">
+        Finalizar Vistoria
+      </button>
+    </form>
+  </main>
+
+  <div class="modal fade" id="clearDraftModal" tabindex="-1" aria-labelledby="clearDraftModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="clearDraftModalLabel">Limpar dados salvos</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          Todos os dados preenchidos serão limpos. Esta ação não poderá ser desfeita.
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" id="confirmClearDraftBtn" class="btn btn-danger">Limpar dados</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="reportModalLabel">Confirmar Vistoria</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <div id="reportPreview" class="report-preview"></div>
+          <button type="button" id="saveInspectionBtn" class="btn btn-primary w-100 mt-3">Salvar vistoria</button>
+          <div id="reportFeedback" class="form-text mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" id="confirmReportBtn" class="btn btn-success">Copiar e Exportar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <template id="roomTemplate">
+    <section class="room-card p-3" data-room>
+      <div class="d-flex align-items-start justify-content-between gap-2 mb-3">
+        <div class="flex-grow-1">
+          <h2 class="h5 mb-1">
+            <button type="button" class="group-toggle" data-room-toggle aria-expanded="false">
+              <span data-room-title></span>
+            </button>
+          </h2>
+          <p class="text-body-secondary small mb-0">Informe os detalhes deste ambiente.</p>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm btn-icon" data-remove-room title="Remover cômodo">
+          &times;
+        </button>
+      </div>
+
+      <div data-room-body>
+      <div class="mb-3">
+        <label class="form-label">Nome do cômodo</label>
+        <input type="text" class="form-control" data-field="roomName" placeholder="Ex.: Sala, Quarto 1, Cozinha">
+      </div>
+
+      <div class="sub-card p-3 mb-3">
+        <h3 class="section-title">
+          <button type="button" class="group-toggle" data-section-toggle aria-expanded="false">Piso</button>
+        </h3>
+        <div class="row g-3 d-none" data-section-body>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Tipo</label>
+            <select class="form-select" data-field="floorType">
+              <option>Cerâmica</option>
+              <option>Porcelanato</option>
+              <option>Cimento</option>
+              <option>Madeira</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Estado</label>
+            <select class="form-select" data-field="floorState"></select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Danos ou avarias</label>
+            <select class="form-select" data-field="floorDamage"></select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Cor</label>
+            <select class="form-select" data-field="floorColor"></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Observação</label>
+            <textarea class="form-control" rows="2" data-field="floorObservation"></textarea>
+          </div>
+          <div class="col-12">
+            <button type="button" class="btn btn-secondary w-100" data-section-ok>Finalizar Piso</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub-card p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h3 class="section-title mb-0 flex-grow-1">
+            <button type="button" class="group-toggle" data-section-toggle aria-expanded="false">Paredes</button>
+          </h3>
+        </div>
+        <div class="d-none" data-section-body>
+          <div class="vstack gap-2" data-walls></div>
+          <div class="mt-3">
+            <label class="form-label">Observação</label>
+            <textarea class="form-control" rows="2" data-field="wallsObservation"></textarea>
+          </div>
+          <button type="button" class="btn btn-outline-primary w-100 mt-3" data-add-wall>Adicionar parede</button>
+          <button type="button" class="btn btn-secondary w-100 mt-2" data-section-ok>Finalizar Paredes</button>
+        </div>
+      </div>
+
+      <div class="sub-card p-3 mb-3">
+        <h3 class="section-title">
+          <button type="button" class="group-toggle" data-section-toggle aria-expanded="false">Teto</button>
+        </h3>
+        <div class="d-none" data-section-body>
+          <div data-ceiling-fields></div>
+          <button type="button" class="btn btn-secondary w-100 mt-3" data-section-ok>Finalizar Teto</button>
+        </div>
+      </div>
+
+      <div class="sub-card p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h3 class="section-title mb-0 flex-grow-1">
+            <button type="button" class="group-toggle" data-section-toggle aria-expanded="false">Bocais</button>
+          </h3>
+        </div>
+        <div class="d-none" data-section-body>
+          <div class="vstack gap-2" data-sockets></div>
+          <div class="mt-3">
+            <label class="form-label">Observação</label>
+            <textarea class="form-control" rows="2" data-field="socketsObservation"></textarea>
+          </div>
+          <button type="button" class="btn btn-outline-primary w-100 mt-3" data-add-socket>Adicionar bocal</button>
+          <button type="button" class="btn btn-secondary w-100 mt-2" data-section-ok>Finalizar Bocais</button>
+        </div>
+      </div>
+
+      <div class="sub-card p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h3 class="section-title mb-0 flex-grow-1">
+            <button type="button" class="group-toggle" data-section-toggle aria-expanded="false">Janelas</button>
+          </h3>
+        </div>
+        <div class="d-none" data-section-body>
+          <div class="vstack gap-2" data-windows></div>
+          <button type="button" class="btn btn-outline-primary w-100 mt-3" data-add-window>Adicionar janela</button>
+          <button type="button" class="btn btn-secondary w-100 mt-2" data-section-ok>Finalizar Janelas</button>
+        </div>
+      </div>
+
+      <div class="sub-card p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h3 class="section-title mb-0 flex-grow-1">
+            <button type="button" class="group-toggle" data-section-toggle aria-expanded="false">Portas</button>
+          </h3>
+        </div>
+        <div class="d-none" data-section-body>
+          <div class="vstack gap-2" data-doors></div>
+          <button type="button" class="btn btn-outline-primary w-100 mt-3" data-add-door>Adicionar porta</button>
+          <button type="button" class="btn btn-secondary w-100 mt-2" data-section-ok>Finalizar Portas</button>
+        </div>
+      </div>
+
+      <div class="sub-card p-3 mb-3">
+        <h3 class="section-title">
+          <button type="button" class="group-toggle" data-section-toggle aria-expanded="false">Tomadas</button>
+        </h3>
+        <div class="d-none" data-section-body>
+          <div class="vstack gap-2" data-outlets></div>
+          <button type="button" class="btn btn-outline-primary w-100 mt-3" data-add-outlet>Adicionar tomada</button>
+          <button type="button" class="btn btn-secondary w-100 mt-2" data-section-ok>Finalizar Tomadas</button>
+        </div>
+      </div>
+
+      <div class="sub-card p-3 mb-3">
+        <h3 class="section-title">
+          <button type="button" class="group-toggle" data-section-toggle aria-expanded="false">Interruptores</button>
+        </h3>
+        <div class="d-none" data-section-body>
+          <div class="vstack gap-2" data-switches></div>
+          <button type="button" class="btn btn-outline-primary w-100 mt-3" data-add-switch>Adicionar interruptor</button>
+          <button type="button" class="btn btn-secondary w-100 mt-2" data-section-ok>Finalizar Interruptores</button>
+        </div>
+      </div>
+
+      <div class="sub-card p-3 mb-3 d-none" data-accessories-section>
+        <h3 class="section-title">
+          <button type="button" class="group-toggle" data-section-toggle aria-expanded="false">Acessórios</button>
+        </h3>
+        <div class="d-none" data-section-body>
+          <div data-accessories-fields></div>
+          <button type="button" class="btn btn-secondary w-100 mt-3" data-section-ok>Finalizar Acessórios</button>
+        </div>
+      </div>
+
+      <div class="sub-card p-3">
+        <h3 class="section-title">
+          <button type="button" class="group-toggle" data-section-toggle aria-expanded="false">Observação</button>
+        </h3>
+        <div class="d-none" data-section-body>
+          <textarea class="form-control" rows="2" data-field="observation" placeholder="Inclua detalhes adicionais, se necessário."></textarea>
+          <button type="button" class="btn btn-secondary w-100 mt-3" data-section-ok>Finalizar Observação</button>
+        </div>
+      </div>
+      <button type="button" class="btn btn-secondary w-100 mt-3" data-room-ok>Finalizar cômodo</button>
+      </div>
+    </section>
+  </template>
+
+  <template id="wallTemplate">
+    <div class="sub-card p-3" data-wall>
+      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+        <h4 class="h6 mb-0 flex-grow-1">
+          <button type="button" class="group-toggle" data-wall-toggle aria-expanded="false">
+            Parede <span data-wall-number></span>
+          </button>
+        </h4>
+        <button type="button" class="btn btn-outline-danger btn-sm btn-icon" data-remove-wall title="Remover parede">
+          &times;
+        </button>
+      </div>
+      <div class="d-none" data-wall-body>
+        <div data-wall-fields></div>
+        <button type="button" class="btn btn-secondary w-100 mt-3" data-wall-ok>Finalizar parede</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="socketTemplate">
+    <div class="sub-card p-3" data-socket>
+      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+        <h4 class="h6 mb-0 flex-grow-1">
+          <button type="button" class="group-toggle" data-socket-toggle aria-expanded="false">
+            Bocal <span data-socket-number></span>
+          </button>
+        </h4>
+        <button type="button" class="btn btn-outline-danger btn-sm btn-icon" data-remove-socket title="Remover bocal">
+          &times;
+        </button>
+      </div>
+      <div class="d-none" data-socket-body>
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label">Tipo</label>
+          <select class="form-select" data-field="socketType">
+            <option>Simples</option>
+            <option>Luminária</option>
+            <option>Lustre</option>
+            <option>Sem bocal</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label">Danos</label>
+          <select class="form-select" data-field="socketDamage">
+            <option>Não</option>
+            <option>Quebrado</option>
+            <option>Trincado</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label">Estado</label>
+          <select class="form-select" data-field="socketState"></select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label">Lâmpada</label>
+          <select class="form-select" data-field="hasLamp">
+            <option>Sim</option>
+            <option>Não</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-6" data-lamp-state-wrap>
+          <label class="form-label">Estado da lâmpada</label>
+          <select class="form-select" data-field="lampState"></select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label">Funcionando</label>
+          <select class="form-select" data-field="lampWorking">
+            <option>Sim</option>
+            <option>Não</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observação</label>
+          <textarea class="form-control" rows="2" data-field="socketObservation"></textarea>
+        </div>
+        <div class="col-12">
+          <button type="button" class="btn btn-secondary w-100" data-socket-ok>Finalizar bocal</button>
+        </div>
+      </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="outletTemplate">
+    <div class="sub-card p-3" data-outlet>
+      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+        <h4 class="h6 mb-0 flex-grow-1">
+          <button type="button" class="group-toggle" data-outlet-toggle aria-expanded="false">
+            Tomada <span data-outlet-number></span>
+          </button>
+        </h4>
+        <button type="button" class="btn btn-outline-danger btn-sm btn-icon" data-remove-outlet title="Remover tomada">
+          &times;
+        </button>
+      </div>
+      <div class="d-none" data-outlet-body>
+        <div data-outlet-fields></div>
+        <button type="button" class="btn btn-secondary w-100 mt-3" data-outlet-ok>Finalizar tomada</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="switchTemplate">
+    <div class="sub-card p-3" data-switch>
+      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+        <h4 class="h6 mb-0 flex-grow-1">
+          <button type="button" class="group-toggle" data-switch-toggle aria-expanded="false">
+            Interruptor <span data-switch-number></span>
+          </button>
+        </h4>
+        <button type="button" class="btn btn-outline-danger btn-sm btn-icon" data-remove-switch title="Remover interruptor">
+          &times;
+        </button>
+      </div>
+      <div class="d-none" data-switch-body>
+        <div data-switch-fields></div>
+        <button type="button" class="btn btn-secondary w-100 mt-3" data-switch-ok>Finalizar interruptor</button>
+      </div>
+    </div>
+  </template>
+
+
+  <template id="windowTemplate">
+    <div class="sub-card p-3" data-window>
+      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+        <h4 class="h6 mb-0 flex-grow-1">
+          <button type="button" class="group-toggle" data-window-toggle aria-expanded="false">
+            Janela <span data-window-number></span>
+          </button>
+        </h4>
+        <button type="button" class="btn btn-outline-danger btn-sm btn-icon" data-remove-window title="Remover janela">
+          &times;
+        </button>
+      </div>
+      <div class="d-none" data-window-body>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Material</label>
+            <select class="form-select" data-field="windowMaterial">
+              <option>Alumínio</option>
+              <option>Aço</option>
+              <option>Madeira</option>
+              <option>PVC</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Estado da janela</label>
+            <select class="form-select" data-field="windowState"></select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Pintura</label>
+            <select class="form-select" data-field="windowPainting">
+              <option>Não</option>
+              <option>Sim</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Quantidade de vidros</label>
+            <select class="form-select" data-field="windowGlassQuantity"></select>
+          </div>
+          <div class="col-12 col-md-6" data-window-glass-state-wrap>
+            <label class="form-label">Estado do vidro</label>
+            <select class="form-select" data-field="windowGlassState">
+              <option>Inteiro</option>
+              <option>Trincado</option>
+              <option>Quebrado</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Grade externa</label>
+            <select class="form-select" data-field="windowExternalGrid">
+              <option>Não</option>
+              <option>Sim</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6" data-window-grid-state-wrap>
+            <label class="form-label">Estado da grade</label>
+            <select class="form-select" data-field="windowGridState"></select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Tela externa</label>
+            <select class="form-select" data-field="windowExternalScreen">
+              <option>Não</option>
+              <option>Sim</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6" data-window-screen-state-wrap>
+            <label class="form-label">Estado da tela</label>
+            <select class="form-select" data-field="windowScreenState"></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Observações</label>
+            <textarea class="form-control" rows="2" data-field="windowObservation"></textarea>
+          </div>
+          <div class="col-12">
+            <button type="button" class="btn btn-secondary w-100" data-window-ok>Finalizar janela</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+
+  <template id="doorTemplate">
+    <div class="sub-card p-3" data-door>
+      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+        <h4 class="h6 mb-0 flex-grow-1">
+          <button type="button" class="group-toggle" data-door-toggle aria-expanded="false">
+            Porta <span data-door-number></span>
+          </button>
+        </h4>
+        <button type="button" class="btn btn-outline-danger btn-sm btn-icon" data-remove-door title="Remover porta">
+          &times;
+        </button>
+      </div>
+      <div class="d-none" data-door-body>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Tipo</label>
+            <select class="form-select" data-field="doorType">
+              <option>Abrir</option>
+              <option>Correr</option>
+              <option>Enrolar</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Material</label>
+            <select class="form-select" data-field="doorMaterial">
+              <option>Madeira</option>
+              <option>Aço</option>
+              <option>Alumínio</option>
+              <option>Vidro</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Estado da porta</label>
+            <select class="form-select" data-field="doorState"></select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Pintura</label>
+            <select class="form-select" data-field="doorPainting">
+              <option>Não</option>
+              <option>Sim</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Maçaneta</label>
+            <select class="form-select" data-field="doorHandle">
+              <option>Sim</option>
+              <option>Não</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6" data-door-handle-state-wrap>
+            <label class="form-label">Estado da maçaneta</label>
+            <select class="form-select" data-field="doorHandleState"></select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Fechadura</label>
+            <select class="form-select" data-field="doorLock">
+              <option>Sim</option>
+              <option>Não</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6" data-door-lock-state-wrap>
+            <label class="form-label">Estado da fechadura</label>
+            <select class="form-select" data-field="doorLockState"></select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Quantidade de chaves</label>
+            <select class="form-select" data-field="doorKeyQuantity"></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Observações</label>
+            <textarea class="form-control" rows="2" data-field="doorObservation"></textarea>
+          </div>
+          <div class="col-12">
+            <button type="button" class="btn btn-secondary w-100" data-door-ok>Finalizar porta</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const yesNoOptions = ['Sim', 'Não'];
+    const paintStateOptions = ['Com pintura nova', 'Em bom estado', 'Em estado razoável', 'Em estado ruim'];
+    const stateOptions = ['Em bom estado', 'Em estado razoável', 'Em estado ruim'];
+    const basicColorOptions = ['Branco', 'Preto', 'Cinza', 'Bege', 'Marrom', 'Azul', 'Verde', 'Amarelo', 'Vermelho', 'Rosa', 'Laranja'];
+    const floorColorOptions = ['Branco', 'Preto', 'Cinza', 'Bege', 'Marrom', 'Areia', 'Creme', 'Terracota', 'Madeirado', 'Marmorizado'];
+    const quantityOptions = Array.from({ length: 21 }, (_, index) => String(index));
+    const fixtureTypeOptions = ['Simples', 'Dupla', 'Tripla', 'Quádupla', 'Quíntupla', 'Sextupla', 'Sétupla', 'Óctupla'];
+    const baseboardOptions = ['Não', 'Madeira', 'Porcelanato'];
+    const windowGlassQuantityOptions = Array.from({ length: 11 }, (_, index) => String(index));
+    const doorKeyQuantityOptions = ['1', '0', '2', '3', '4', '5', '6'];
+    const storageKey = 'vistoria-form-draft';
+    let isRestoring = false;
+
+    const importInspectionInput = document.querySelector('#importInspectionInput');
+    const inspectionNameInput = document.querySelector('#inspectionName');
+    const roomsContainer = document.querySelector('#roomsContainer');
+    const roomTemplate = document.querySelector('#roomTemplate');
+    const wallTemplate = document.querySelector('#wallTemplate');
+    const socketTemplate = document.querySelector('#socketTemplate');
+    const outletTemplate = document.querySelector('#outletTemplate');
+    const switchTemplate = document.querySelector('#switchTemplate');
+    const windowTemplate = document.querySelector('#windowTemplate');
+    const doorTemplate = document.querySelector('#doorTemplate');
+    const reportPreview = document.querySelector('#reportPreview');
+    const reportFeedback = document.querySelector('#reportFeedback');
+    const clearDraftModal = new bootstrap.Modal(document.querySelector('#clearDraftModal'));
+    const reportModal = new bootstrap.Modal(document.querySelector('#reportModal'));
+    let pendingReport = '';
+
+    document.querySelector('#importInspectionBtn').addEventListener('click', () => importInspectionInput.click());
+    importInspectionInput.addEventListener('change', importInspectionJson);
+    document.querySelector('#addRoomBtn').addEventListener('click', () => addRoom());
+    document.querySelector('#clearDraftMenuBtn').addEventListener('click', () => clearDraftModal.show());
+    document.querySelector('#confirmClearDraftBtn').addEventListener('click', clearDraftAndReload);
+    document.querySelector('#generateReportBtn').addEventListener('click', generateReport);
+    document.querySelector('#confirmReportBtn').addEventListener('click', confirmReport);
+    document.querySelector('#saveInspectionBtn').addEventListener('click', downloadInspectionJson);
+    document.querySelector('#inspectionForm').addEventListener('input', saveDraft);
+    document.querySelector('#inspectionForm').addEventListener('change', saveDraft);
+
+    function clearDraftAndReload() {
+      localStorage.clear();
+      window.location.reload();
+    }
+
+    function fillSelect(select, options) {
+      select.innerHTML = '';
+      options.forEach((option) => {
+        const item = document.createElement('option');
+        item.value = option;
+        item.textContent = option;
+        select.appendChild(item);
+      });
+    }
+
+    function valueIn(scope, field) {
+      const element = scope.querySelector(`[data-field="${field}"]`);
+      return element ? element.value : '';
+    }
+
+    function createSurfaceFields(includeTile) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'row g-3';
+
+      if (includeTile) {
+        wrapper.appendChild(createSelectField('Azulejo', 'tile', yesNoOptions, 'Não'));
+        wrapper.appendChild(createSelectField('Rodapé', 'baseboard', baseboardOptions, 'Não'));
+        const baseboardState = createSelectField('Estado do rodapé', 'baseboardState', stateOptions);
+        baseboardState.dataset.baseboardStateWrap = 'true';
+        wrapper.appendChild(baseboardState);
+      }
+
+      wrapper.appendChild(createSelectField('Estado da pintura', 'paintState', paintStateOptions));
+      wrapper.appendChild(createSelectField('Cor', 'color', basicColorOptions));
+      wrapper.appendChild(createSelectField('Danos ou avarias', 'damage', yesNoOptions, 'Não'));
+      wrapper.appendChild(createSelectField('Quantidade de furos', 'holes', quantityOptions));
+      wrapper.appendChild(createTextareaField('Observação', 'surfaceObservation'));
+
+      if (includeTile) {
+        const baseboardSelect = wrapper.querySelector('[data-field="baseboard"]');
+        baseboardSelect.addEventListener('change', () => toggleBaseboardState(wrapper));
+        toggleBaseboardState(wrapper);
+      }
+
+      return wrapper;
+    }
+
+    function createFixtureFields(prefix) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'row g-3';
+      wrapper.appendChild(createSelectField('Tipo', `${prefix}Type`, fixtureTypeOptions, 'Simples'));
+      wrapper.appendChild(createSelectField('Estado', `${prefix}State`, stateOptions));
+      wrapper.appendChild(createSelectField('Espelho', `${prefix}Mirror`, yesNoOptions));
+
+      const mirrorState = createSelectField('Estado do espelho', `${prefix}MirrorState`, stateOptions);
+      mirrorState.dataset.mirrorStateWrap = prefix;
+      wrapper.appendChild(mirrorState);
+
+      wrapper.appendChild(createSelectField('Pintura', `${prefix}Painting`, yesNoOptions, 'Não'));
+      wrapper.appendChild(createTextareaField('Observação', `${prefix}Observation`));
+
+      const mirrorSelect = wrapper.querySelector(`[data-field="${prefix}Mirror"]`);
+      mirrorSelect.addEventListener('change', () => toggleMirrorState(wrapper, prefix));
+      toggleMirrorState(wrapper, prefix);
+
+      return wrapper;
+    }
+
+    function createAccessoriesFields() {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'row g-3';
+      [
+        ['Pia', 'sink'],
+        ['Vaso', 'toilet'],
+        ['Chuveiro', 'shower'],
+        ['Box', 'box']
+      ].forEach(([label, field]) => {
+        const presentField = createSelectField(label, `${field}Present`, yesNoOptions, 'Sim');
+        presentField.dataset.accessoryItemWrap = field;
+        wrapper.appendChild(presentField);
+
+        const article = label === 'Pia' ? 'da' : 'do';
+        const stateField = createSelectField(`Estado ${article} ${label.toLowerCase()}`, `${field}State`, stateOptions);
+        stateField.dataset.accessoryItemWrap = field;
+        stateField.dataset.accessoryStateWrap = field;
+        wrapper.appendChild(stateField);
+      });
+
+      wrapper.appendChild(createTextareaField('Observação', 'accessoriesObservation'));
+
+      wrapper.querySelectorAll('[data-field$="Present"]').forEach((select) => {
+        select.addEventListener('change', () => {
+          const room = wrapper.closest('[data-room]');
+          if (room) {
+            toggleAccessoriesSection(room);
+            return;
+          }
+
+          toggleAccessoryStates(wrapper);
+        });
+      });
+      toggleAccessoryStates(wrapper);
+      return wrapper;
+    }
+
+    function sectionKey(title) {
+      return title
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .toLowerCase();
+    }
+
+    function sectionTitle(section) {
+      return section.querySelector('[data-section-toggle]')?.textContent.trim() || '';
+    }
+
+    function sectionByTitle(room, title) {
+      return Array.from(room.querySelectorAll('[data-room-body] > .sub-card'))
+        .find((section) => sectionTitle(section) === title);
+    }
+
+    function initializeNotApplicableControls(room) {
+      room.querySelectorAll('[data-room-body] > .sub-card').forEach((section) => {
+        const body = section.querySelector('[data-section-body]');
+        const title = sectionTitle(section);
+        if (!body || !title || title === 'Observação' || body.querySelector('[data-na-control]')) {
+          return;
+        }
+
+        const key = sectionKey(title);
+        const control = document.createElement('div');
+        control.className = body.classList.contains('row') ? 'col-12' : 'mb-3';
+        control.dataset.naControl = 'true';
+        control.innerHTML = `
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" data-field="na_${key}" id="na_${key}_${Date.now()}_${Math.random().toString(36).slice(2)}">
+            <label class="form-check-label">Não se aplica</label>
+          </div>
+          <div class="d-none" data-na-observation-wrap>
+            <label class="form-label">Observação</label>
+            <textarea class="form-control" rows="2" data-field="naObs_${key}"></textarea>
+          </div>
+        `;
+        body.prepend(control);
+        control.querySelector('label.form-check-label').setAttribute('for', control.querySelector('input').id);
+        control.querySelector('input').addEventListener('change', () => updateNotApplicableSection(section));
+        updateNotApplicableSection(section);
+      });
+    }
+
+    function updateNotApplicableSection(section) {
+      const body = section.querySelector('[data-section-body]');
+      const checkbox = body?.querySelector('[data-na-control] input[type="checkbox"]');
+      if (!body || !checkbox) {
+        return;
+      }
+
+      const checked = checkbox.checked;
+      body.querySelector('[data-na-observation-wrap]').classList.toggle('d-none', !checked);
+      Array.from(body.children).forEach((child) => {
+        if (child.dataset.naControl === 'true' || child.matches('[data-section-ok]') || child.querySelector('[data-section-ok]')) {
+          child.classList.remove('d-none');
+          return;
+        }
+        child.classList.toggle('d-none', checked);
+      });
+    }
+
+    function updateNotApplicableSections(room) {
+      room.querySelectorAll('[data-room-body] > .sub-card').forEach(updateNotApplicableSection);
+    }
+
+    function sectionNotApplicable(room, title) {
+      const section = sectionByTitle(room, title);
+      return Boolean(section?.querySelector('[data-na-control] input[type="checkbox"]')?.checked);
+    }
+
+    function notApplicableText(room, title) {
+      const section = sectionByTitle(room, title);
+      const key = sectionKey(title);
+      const observation = valueIn(section, `naObs_${key}`).trim();
+      return `${title}: Não se aplica.${observation ? ` Observação: ${observation}.` : ''}`;
+    }
+
+    function createSelectField(label, field, options, defaultValue = null) {
+      const col = document.createElement('div');
+      col.className = 'col-12 col-md-6';
+
+      const labelElement = document.createElement('label');
+      labelElement.className = 'form-label';
+      labelElement.textContent = label;
+
+      const select = document.createElement('select');
+      select.className = 'form-select';
+      select.dataset.field = field;
+      fillSelect(select, options);
+      if (defaultValue !== null) {
+        select.value = defaultValue;
+      }
+
+      col.appendChild(labelElement);
+      col.appendChild(select);
+      return col;
+    }
+
+    function createTextareaField(label, field) {
+      const col = document.createElement('div');
+      col.className = 'col-12';
+
+      const labelElement = document.createElement('label');
+      labelElement.className = 'form-label';
+      labelElement.textContent = label;
+
+      const textarea = document.createElement('textarea');
+      textarea.className = 'form-control';
+      textarea.rows = 2;
+      textarea.dataset.field = field;
+
+      col.appendChild(labelElement);
+      col.appendChild(textarea);
+      return col;
+    }
+
+    function addRoom() {
+      const fragment = roomTemplate.content.cloneNode(true);
+      const room = fragment.querySelector('[data-room]');
+
+      room.querySelector('[data-ceiling-fields]').appendChild(createSurfaceFields(false));
+      room.querySelector('[data-accessories-fields]').appendChild(createAccessoriesFields());
+
+      fillSelect(room.querySelector('[data-field="floorState"]'), stateOptions);
+      fillSelect(room.querySelector('[data-field="floorDamage"]'), yesNoOptions);
+      room.querySelector('[data-field="floorDamage"]').value = 'Não';
+      fillSelect(room.querySelector('[data-field="floorColor"]'), floorColorOptions);
+
+      room.querySelector('[data-room-body]').classList.add('d-none');
+      initializeNotApplicableControls(room);
+      room.querySelector('[data-field="roomName"]').addEventListener('input', () => {
+        updateRoomTitle(room);
+        toggleAccessoriesSection(room);
+      });
+      room.querySelector('[data-room-toggle]').addEventListener('click', () => toggleGroup(room.querySelector('[data-room-toggle]'), room.querySelector('[data-room-body]')));
+      room.querySelector('[data-room-ok]').addEventListener('click', () => completeGroup(room.querySelector('[data-room-toggle]'), room.querySelector('[data-room-body]')));
+      room.querySelectorAll('[data-section-toggle]').forEach((toggle) => {
+        const section = toggle.closest('.sub-card');
+        const body = section.querySelector('[data-section-body]');
+        toggle.addEventListener('click', () => toggleGroup(toggle, body));
+        section.querySelector('[data-section-ok]').addEventListener('click', () => completeGroup(toggle, body));
+      });
+      room.querySelector('[data-add-wall]').addEventListener('click', () => addWall(room));
+      room.querySelector('[data-add-socket]').addEventListener('click', () => addSocket(room));
+      room.querySelector('[data-add-outlet]').addEventListener('click', () => addOutlet(room));
+      room.querySelector('[data-add-switch]').addEventListener('click', () => addSwitch(room));
+      room.querySelector('[data-add-window]').addEventListener('click', () => addWindow(room));
+      room.querySelector('[data-add-door]').addEventListener('click', () => addDoor(room));
+      room.querySelector('[data-remove-room]').addEventListener('click', () => {
+        if (roomsContainer.querySelectorAll('[data-room]').length <= 1) {
+          resetRoom(room);
+          return;
+        }
+        room.remove();
+        renumberRooms();
+        saveDraft();
+      });
+
+      roomsContainer.appendChild(room);
+      addWall(roomsContainer.lastElementChild);
+      addSocket(roomsContainer.lastElementChild);
+      addOutlet(roomsContainer.lastElementChild);
+      addSwitch(roomsContainer.lastElementChild);
+      addWindow(roomsContainer.lastElementChild);
+      addDoor(roomsContainer.lastElementChild);
+      renumberRooms();
+      saveDraft();
+    }
+
+    function addWall(room) {
+      const fragment = wallTemplate.content.cloneNode(true);
+      const wall = fragment.querySelector('[data-wall]');
+      wall.querySelector('[data-wall-fields]').appendChild(createSurfaceFields(true));
+      wall.querySelector('[data-wall-toggle]').addEventListener('click', () => toggleGroup(wall.querySelector('[data-wall-toggle]'), wall.querySelector('[data-wall-body]')));
+      wall.querySelector('[data-wall-ok]').addEventListener('click', () => completeGroup(wall.querySelector('[data-wall-toggle]'), wall.querySelector('[data-wall-body]')));
+      wall.querySelector('[data-remove-wall]').addEventListener('click', () => {
+        if (room.querySelectorAll('[data-wall]').length <= 1) {
+          resetWall(wall);
+          saveDraft();
+          return;
+        }
+        wall.remove();
+        renumberWalls(room);
+        saveDraft();
+      });
+      room.querySelector('[data-walls]').appendChild(wall);
+      renumberWalls(room);
+      saveDraft();
+    }
+
+    function addSocket(room) {
+      const fragment = socketTemplate.content.cloneNode(true);
+      const socket = fragment.querySelector('[data-socket]');
+      fillSelect(socket.querySelector('[data-field="socketState"]'), stateOptions);
+      fillSelect(socket.querySelector('[data-field="lampState"]'), stateOptions);
+
+      socket.querySelector('[data-field="hasLamp"]').addEventListener('change', () => toggleLampState(socket));
+      socket.querySelector('[data-socket-toggle]').addEventListener('click', () => toggleGroup(socket.querySelector('[data-socket-toggle]'), socket.querySelector('[data-socket-body]')));
+      socket.querySelector('[data-socket-ok]').addEventListener('click', () => completeGroup(socket.querySelector('[data-socket-toggle]'), socket.querySelector('[data-socket-body]')));
+      socket.querySelector('[data-remove-socket]').addEventListener('click', () => {
+        if (room.querySelectorAll('[data-socket]').length <= 1) {
+          resetSocket(socket);
+          saveDraft();
+          return;
+        }
+        socket.remove();
+        renumberSockets(room);
+        saveDraft();
+      });
+
+      room.querySelector('[data-sockets]').appendChild(socket);
+      toggleLampState(socket);
+      renumberSockets(room);
+      saveDraft();
+    }
+
+
+
+    function addOutlet(room) {
+      const fragment = outletTemplate.content.cloneNode(true);
+      const outlet = fragment.querySelector('[data-outlet]');
+      outlet.querySelector('[data-outlet-fields]').appendChild(createFixtureFields('outlet'));
+      outlet.querySelector('[data-outlet-toggle]').addEventListener('click', () => toggleGroup(outlet.querySelector('[data-outlet-toggle]'), outlet.querySelector('[data-outlet-body]')));
+      outlet.querySelector('[data-outlet-ok]').addEventListener('click', () => completeGroup(outlet.querySelector('[data-outlet-toggle]'), outlet.querySelector('[data-outlet-body]')));
+      outlet.querySelector('[data-remove-outlet]').addEventListener('click', () => {
+        if (room.querySelectorAll('[data-outlet]').length <= 1) {
+          resetOutlet(outlet);
+          saveDraft();
+          return;
+        }
+        outlet.remove();
+        renumberOutlets(room);
+        saveDraft();
+      });
+
+      room.querySelector('[data-outlets]').appendChild(outlet);
+      renumberOutlets(room);
+      saveDraft();
+    }
+
+    function addSwitch(room) {
+      const fragment = switchTemplate.content.cloneNode(true);
+      const switchItem = fragment.querySelector('[data-switch]');
+      switchItem.querySelector('[data-switch-fields]').appendChild(createFixtureFields('switch'));
+      switchItem.querySelector('[data-switch-toggle]').addEventListener('click', () => toggleGroup(switchItem.querySelector('[data-switch-toggle]'), switchItem.querySelector('[data-switch-body]')));
+      switchItem.querySelector('[data-switch-ok]').addEventListener('click', () => completeGroup(switchItem.querySelector('[data-switch-toggle]'), switchItem.querySelector('[data-switch-body]')));
+      switchItem.querySelector('[data-remove-switch]').addEventListener('click', () => {
+        if (room.querySelectorAll('[data-switch]').length <= 1) {
+          resetSwitch(switchItem);
+          saveDraft();
+          return;
+        }
+        switchItem.remove();
+        renumberSwitches(room);
+        saveDraft();
+      });
+
+      room.querySelector('[data-switches]').appendChild(switchItem);
+      renumberSwitches(room);
+      saveDraft();
+    }
+
+
+    function addWindow(room) {
+      const fragment = windowTemplate.content.cloneNode(true);
+      const windowItem = fragment.querySelector('[data-window]');
+      fillSelect(windowItem.querySelector('[data-field="windowState"]'), stateOptions);
+      fillSelect(windowItem.querySelector('[data-field="windowGlassQuantity"]'), windowGlassQuantityOptions);
+      fillSelect(windowItem.querySelector('[data-field="windowGridState"]'), stateOptions);
+      fillSelect(windowItem.querySelector('[data-field="windowScreenState"]'), stateOptions);
+
+      windowItem.querySelector('[data-field="windowGlassQuantity"]').addEventListener('change', () => toggleWindowConditionalFields(windowItem));
+      windowItem.querySelector('[data-field="windowExternalGrid"]').addEventListener('change', () => toggleWindowConditionalFields(windowItem));
+      windowItem.querySelector('[data-field="windowExternalScreen"]').addEventListener('change', () => toggleWindowConditionalFields(windowItem));
+      windowItem.querySelector('[data-window-toggle]').addEventListener('click', () => toggleGroup(windowItem.querySelector('[data-window-toggle]'), windowItem.querySelector('[data-window-body]')));
+      windowItem.querySelector('[data-window-ok]').addEventListener('click', () => completeGroup(windowItem.querySelector('[data-window-toggle]'), windowItem.querySelector('[data-window-body]')));
+      windowItem.querySelector('[data-remove-window]').addEventListener('click', () => {
+        if (room.querySelectorAll('[data-window]').length <= 1) {
+          resetWindow(windowItem);
+          saveDraft();
+          return;
+        }
+        windowItem.remove();
+        renumberWindows(room);
+        saveDraft();
+      });
+
+      room.querySelector('[data-windows]').appendChild(windowItem);
+      toggleWindowConditionalFields(windowItem);
+      renumberWindows(room);
+      saveDraft();
+    }
+
+    function addDoor(room) {
+      const fragment = doorTemplate.content.cloneNode(true);
+      const door = fragment.querySelector('[data-door]');
+      fillSelect(door.querySelector('[data-field="doorState"]'), stateOptions);
+      fillSelect(door.querySelector('[data-field="doorHandleState"]'), stateOptions);
+      fillSelect(door.querySelector('[data-field="doorLockState"]'), stateOptions);
+      fillSelect(door.querySelector('[data-field="doorKeyQuantity"]'), doorKeyQuantityOptions);
+
+      door.querySelector('[data-field="doorHandle"]').addEventListener('change', () => toggleDoorConditionalFields(door));
+      door.querySelector('[data-field="doorLock"]').addEventListener('change', () => toggleDoorConditionalFields(door));
+      door.querySelector('[data-door-toggle]').addEventListener('click', () => toggleGroup(door.querySelector('[data-door-toggle]'), door.querySelector('[data-door-body]')));
+      door.querySelector('[data-door-ok]').addEventListener('click', () => completeGroup(door.querySelector('[data-door-toggle]'), door.querySelector('[data-door-body]')));
+      door.querySelector('[data-remove-door]').addEventListener('click', () => {
+        if (room.querySelectorAll('[data-door]').length <= 1) {
+          resetDoor(door);
+          saveDraft();
+          return;
+        }
+        door.remove();
+        renumberDoors(room);
+        saveDraft();
+      });
+
+      room.querySelector('[data-doors]').appendChild(door);
+      toggleDoorConditionalFields(door);
+      renumberDoors(room);
+      saveDraft();
+    }
+
+
+    function toggleLampState(socket) {
+      const hasLamp = valueIn(socket, 'hasLamp') === 'Sim';
+      socket.querySelector('[data-lamp-state-wrap]').classList.toggle('d-none', !hasLamp);
+    }
+
+    function toggleMirrorState(wrapper, prefix) {
+      const hasMirror = valueIn(wrapper, `${prefix}Mirror`) === 'Sim';
+      wrapper.querySelector(`[data-mirror-state-wrap="${prefix}"]`).classList.toggle('d-none', !hasMirror);
+    }
+
+    function toggleBaseboardState(wrapper) {
+      const baseboard = valueIn(wrapper, 'baseboard');
+      wrapper.querySelector('[data-baseboard-state-wrap]').classList.toggle('d-none', baseboard === 'Não');
+    }
+
+    function toggleWindowConditionalFields(windowItem) {
+      const glassQuantity = Number(valueIn(windowItem, 'windowGlassQuantity'));
+      windowItem.querySelector('[data-window-glass-state-wrap]').classList.toggle('d-none', glassQuantity < 1);
+      windowItem.querySelector('[data-window-grid-state-wrap]').classList.toggle('d-none', valueIn(windowItem, 'windowExternalGrid') !== 'Sim');
+      windowItem.querySelector('[data-window-screen-state-wrap]').classList.toggle('d-none', valueIn(windowItem, 'windowExternalScreen') !== 'Sim');
+    }
+
+    function toggleDoorConditionalFields(door) {
+      door.querySelector('[data-door-handle-state-wrap]').classList.toggle('d-none', valueIn(door, 'doorHandle') !== 'Sim');
+      door.querySelector('[data-door-lock-state-wrap]').classList.toggle('d-none', valueIn(door, 'doorLock') !== 'Sim');
+    }
+
+    function toggleAccessoryStates(wrapper) {
+      ['sink', 'toilet', 'shower', 'box'].forEach((field) => {
+        wrapper.querySelector(`[data-accessory-state-wrap="${field}"]`).classList.toggle('d-none', valueIn(wrapper, `${field}Present`) !== 'Sim');
+      });
+    }
+
+    function visibleAccessoryFields(room) {
+      const roomName = valueIn(room, 'roomName').toLowerCase();
+      if (roomName.includes('banheiro')) {
+        return ['sink', 'toilet', 'shower', 'box'];
+      }
+
+      if (roomName.includes('lavabo')) {
+        return ['sink', 'toilet'];
+      }
+
+      if (roomName.includes('cozinha') || roomName.includes('lavanderia')) {
+        return ['sink'];
+      }
+
+      return [];
+    }
+
+    function toggleAccessoriesSection(room) {
+      const visibleFields = visibleAccessoryFields(room);
+      const section = room.querySelector('[data-accessories-section]');
+      section.classList.toggle('d-none', !visibleFields.length);
+
+      ['sink', 'toilet', 'shower', 'box'].forEach((field) => {
+        const isVisible = visibleFields.includes(field);
+        section.querySelectorAll(`[data-accessory-item-wrap="${field}"]`).forEach((element) => {
+          element.classList.toggle('d-none', !isVisible);
+        });
+
+        const stateWrap = section.querySelector(`[data-accessory-state-wrap="${field}"]`);
+        if (stateWrap) {
+          stateWrap.classList.toggle('d-none', !isVisible || valueIn(section, `${field}Present`) !== 'Sim');
+        }
+      });
+
+      if (!visibleFields.length) {
+        collapseGroup(section.querySelector('[data-section-toggle]'), section.querySelector('[data-section-body]'));
+      }
+    }
+
+    function defaultValueForField(field) {
+      const defaults = {
+        tile: 'Não',
+        damage: 'Não',
+        floorDamage: 'Não',
+        socketDamage: 'Não',
+        baseboard: 'Não',
+        windowMaterial: 'Alumínio',
+        windowState: 'Em bom estado',
+        windowPainting: 'Não',
+        windowGlassQuantity: '0',
+        windowGlassState: 'Inteiro',
+        windowExternalGrid: 'Não',
+        windowGridState: 'Em bom estado',
+        windowExternalScreen: 'Não',
+        windowScreenState: 'Em bom estado',
+        doorType: 'Abrir',
+        doorMaterial: 'Madeira',
+        doorState: 'Em bom estado',
+        doorPainting: 'Não',
+        doorHandle: 'Sim',
+        doorHandleState: 'Em bom estado',
+        doorLock: 'Sim',
+        doorLockState: 'Em bom estado',
+        doorKeyQuantity: '1',
+        sinkPresent: 'Sim',
+        sinkState: 'Em bom estado',
+        toiletPresent: 'Sim',
+        toiletState: 'Em bom estado',
+        showerPresent: 'Sim',
+        showerState: 'Em bom estado',
+        boxPresent: 'Sim',
+        boxState: 'Em bom estado',
+        outletType: 'Simples',
+        switchType: 'Simples',
+        outletPainting: 'Não',
+        switchPainting: 'Não'
+      };
+      return defaults[field] ?? null;
+    }
+
+    function resetFieldsToDefaults(scope) {
+      scope.querySelectorAll('[data-field]').forEach((field) => {
+        if (field.type === 'checkbox') {
+          field.checked = false;
+        } else if (field.tagName === 'SELECT') {
+          const defaultValue = defaultValueForField(field.dataset.field);
+          field.value = defaultValue !== null ? defaultValue : field.options[0]?.value || '';
+        } else {
+          field.value = '';
+        }
+      });
+    }
+
+    function clearCompletedState(scope) {
+      scope.querySelectorAll('.group-toggle[data-completed="true"]').forEach((toggle) => {
+        delete toggle.dataset.completed;
+      });
+    }
+
+    function resetWall(wall) {
+      resetFieldsToDefaults(wall);
+      clearCompletedState(wall);
+      wall.querySelectorAll('[data-baseboard-state-wrap]').forEach((wrapper) => {
+        toggleBaseboardState(wrapper.closest('.row'));
+      });
+      collapseGroup(wall.querySelector('[data-wall-toggle]'), wall.querySelector('[data-wall-body]'));
+    }
+
+    function resetSocket(socket) {
+      resetFieldsToDefaults(socket);
+      clearCompletedState(socket);
+      toggleLampState(socket);
+      collapseGroup(socket.querySelector('[data-socket-toggle]'), socket.querySelector('[data-socket-body]'));
+    }
+
+    function resetOutlet(outlet) {
+      resetFieldsToDefaults(outlet);
+      clearCompletedState(outlet);
+      outlet.querySelectorAll('[data-mirror-state-wrap]').forEach((wrapper) => {
+        toggleMirrorState(wrapper.closest('.row'), wrapper.dataset.mirrorStateWrap);
+      });
+      collapseGroup(outlet.querySelector('[data-outlet-toggle]'), outlet.querySelector('[data-outlet-body]'));
+    }
+
+    function resetSwitch(switchItem) {
+      resetFieldsToDefaults(switchItem);
+      clearCompletedState(switchItem);
+      switchItem.querySelectorAll('[data-mirror-state-wrap]').forEach((wrapper) => {
+        toggleMirrorState(wrapper.closest('.row'), wrapper.dataset.mirrorStateWrap);
+      });
+      collapseGroup(switchItem.querySelector('[data-switch-toggle]'), switchItem.querySelector('[data-switch-body]'));
+    }
+
+    function resetWindow(windowItem) {
+      resetFieldsToDefaults(windowItem);
+      clearCompletedState(windowItem);
+      toggleWindowConditionalFields(windowItem);
+      collapseGroup(windowItem.querySelector('[data-window-toggle]'), windowItem.querySelector('[data-window-body]'));
+    }
+
+    function resetDoor(door) {
+      resetFieldsToDefaults(door);
+      clearCompletedState(door);
+      toggleDoorConditionalFields(door);
+      collapseGroup(door.querySelector('[data-door-toggle]'), door.querySelector('[data-door-body]'));
+    }
+
+    function resetRoom(room) {
+      isRestoring = true;
+
+      const walls = Array.from(room.querySelectorAll('[data-wall]'));
+      walls.slice(1).forEach((wall) => wall.remove());
+
+      const sockets = Array.from(room.querySelectorAll('[data-socket]'));
+      sockets.slice(1).forEach((socket) => socket.remove());
+
+      const outlets = Array.from(room.querySelectorAll('[data-outlet]'));
+      outlets.slice(1).forEach((outlet) => outlet.remove());
+
+      const switches = Array.from(room.querySelectorAll('[data-switch]'));
+      switches.slice(1).forEach((switchItem) => switchItem.remove());
+
+      const windows = Array.from(room.querySelectorAll('[data-window]'));
+      windows.slice(1).forEach((windowItem) => windowItem.remove());
+
+      const doors = Array.from(room.querySelectorAll('[data-door]'));
+      doors.slice(1).forEach((door) => door.remove());
+
+      resetFieldsToDefaults(room);
+      clearCompletedState(room);
+
+      const wall = room.querySelector('[data-wall]');
+      if (wall) {
+        resetWall(wall);
+      }
+
+      const socket = room.querySelector('[data-socket]');
+      if (socket) {
+        resetSocket(socket);
+      }
+
+      const outlet = room.querySelector('[data-outlet]');
+      if (outlet) {
+        resetOutlet(outlet);
+      }
+
+      const switchItem = room.querySelector('[data-switch]');
+      if (switchItem) {
+        resetSwitch(switchItem);
+      }
+
+      const windowItem = room.querySelector('[data-window]');
+      if (windowItem) {
+        resetWindow(windowItem);
+      }
+
+      const door = room.querySelector('[data-door]');
+      if (door) {
+        resetDoor(door);
+      }
+
+      room.querySelectorAll('[data-mirror-state-wrap]').forEach((wrapper) => {
+        toggleMirrorState(wrapper.closest('.row'), wrapper.dataset.mirrorStateWrap);
+      });
+      room.querySelectorAll('[data-accessories-fields] .row').forEach(toggleAccessoryStates);
+      toggleAccessoriesSection(room);
+
+      collapseGroup(room.querySelector('[data-room-toggle]'), room.querySelector('[data-room-body]'));
+      room.querySelectorAll('[data-section-toggle]').forEach((toggle) => {
+        const section = toggle.closest('.sub-card');
+        collapseGroup(toggle, section.querySelector('[data-section-body]'));
+      });
+
+      isRestoring = false;
+      renumberRooms();
+      saveDraft();
+    }
+
+    function toggleGroup(toggle, body) {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      body.classList.toggle('d-none', expanded);
+    }
+
+    function collapseGroup(toggle, body) {
+      if (!toggle || !body) {
+        return;
+      }
+
+      toggle.setAttribute('aria-expanded', 'false');
+      body.classList.add('d-none');
+    }
+
+    function completeGroup(toggle, body) {
+      toggle.dataset.completed = 'true';
+      collapseGroup(toggle, body);
+      saveDraft();
+    }
+
+    function collectFields(scope) {
+      const fields = {};
+      scope.querySelectorAll('[data-field]').forEach((field) => {
+        fields[field.dataset.field] = field.type === 'checkbox' ? field.checked : field.value;
+      });
+      return fields;
+    }
+
+    function collectRoomFields(room) {
+      const fields = {};
+      room.querySelectorAll('[data-field]').forEach((field) => {
+        if (!field.closest('[data-wall]') && !field.closest('[data-socket]') && !field.closest('[data-outlet]') && !field.closest('[data-switch]') && !field.closest('[data-window]') && !field.closest('[data-door]')) {
+          fields[field.dataset.field] = field.type === 'checkbox' ? field.checked : field.value;
+        }
+      });
+      return fields;
+    }
+
+    function setFields(scope, fields = {}) {
+      fields = fields || {};
+      Object.entries(fields).forEach(([fieldName, value]) => {
+        const field = scope.querySelector(`[data-field="${fieldName}"]`);
+        if (field) {
+          if (field.type === 'checkbox') {
+            field.checked = Boolean(value);
+          } else {
+            field.value = value;
+          }
+        }
+      });
+    }
+
+    function setRoomFields(room, fields = {}) {
+      fields = fields || {};
+      Object.entries(fields).forEach(([fieldName, value]) => {
+        const field = Array.from(room.querySelectorAll(`[data-field="${fieldName}"]`))
+          .find((item) => !item.closest('[data-wall]') && !item.closest('[data-socket]') && !item.closest('[data-outlet]') && !item.closest('[data-switch]') && !item.closest('[data-window]') && !item.closest('[data-door]'));
+        if (field) {
+          if (field.type === 'checkbox') {
+            field.checked = Boolean(value);
+          } else {
+            field.value = value;
+          }
+        }
+      });
+    }
+
+    function isCompleted(toggle) {
+      return toggle?.dataset.completed === 'true';
+    }
+
+    function setCompleted(toggle, completed) {
+      if (!toggle) {
+        return;
+      }
+
+      if (completed) {
+        toggle.dataset.completed = 'true';
+      } else {
+        delete toggle.dataset.completed;
+      }
+    }
+
+    function serializeRoom(room) {
+      return {
+        completed: isCompleted(room.querySelector('[data-room-toggle]')),
+        sections: Array.from(room.querySelectorAll('[data-section-toggle]')).map(isCompleted),
+        fields: collectRoomFields(room),
+        walls: Array.from(room.querySelectorAll('[data-wall]')).map((wall) => ({
+          completed: isCompleted(wall.querySelector('[data-wall-toggle]')),
+          fields: collectFields(wall)
+        })),
+        sockets: Array.from(room.querySelectorAll('[data-socket]')).map((socket) => ({
+          completed: isCompleted(socket.querySelector('[data-socket-toggle]')),
+          fields: collectFields(socket)
+        })),
+        outlets: Array.from(room.querySelectorAll('[data-outlet]')).map((outlet) => ({
+          completed: isCompleted(outlet.querySelector('[data-outlet-toggle]')),
+          fields: collectFields(outlet)
+        })),
+        switches: Array.from(room.querySelectorAll('[data-switch]')).map((switchItem) => ({
+          completed: isCompleted(switchItem.querySelector('[data-switch-toggle]')),
+          fields: collectFields(switchItem)
+        })),
+        windows: Array.from(room.querySelectorAll('[data-window]')).map((windowItem) => ({
+          completed: isCompleted(windowItem.querySelector('[data-window-toggle]')),
+          fields: collectFields(windowItem)
+        })),
+        doors: Array.from(room.querySelectorAll('[data-door]')).map((door) => ({
+          completed: isCompleted(door.querySelector('[data-door-toggle]')),
+          fields: collectFields(door)
+        }))
+      };
+    }
+
+    function buildInspectionData() {
+      return {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        inspectionName: inspectionNameInput.value,
+        rooms: Array.from(document.querySelectorAll('[data-room]')).map(serializeRoom)
+      };
+    }
+
+    function saveDraft() {
+      if (isRestoring) {
+        return;
+      }
+
+      localStorage.setItem(storageKey, JSON.stringify(buildInspectionData()));
+    }
+
+    function applyInspectionData(draft) {
+      const rooms = Array.isArray(draft.rooms) && draft.rooms.length ? draft.rooms : null;
+      if (!rooms) {
+        addRoom();
+        return;
+      }
+
+      isRestoring = true;
+      inspectionNameInput.value = draft.inspectionName || '';
+      roomsContainer.innerHTML = '';
+
+      try {
+        rooms.forEach((roomData) => {
+          addRoom();
+          const room = roomsContainer.lastElementChild;
+
+          while (room.querySelectorAll('[data-wall]').length < Math.max(1, roomData.walls?.length || 1)) {
+            addWall(room);
+          }
+
+          while (room.querySelectorAll('[data-socket]').length < Math.max(1, roomData.sockets?.length || 1)) {
+            addSocket(room);
+          }
+
+          while (room.querySelectorAll('[data-outlet]').length < Math.max(1, roomData.outlets?.length || 1)) {
+            addOutlet(room);
+          }
+
+          while (room.querySelectorAll('[data-switch]').length < Math.max(1, roomData.switches?.length || 1)) {
+            addSwitch(room);
+          }
+
+          while (room.querySelectorAll('[data-window]').length < Math.max(1, roomData.windows?.length || 1)) {
+            addWindow(room);
+          }
+
+          while (room.querySelectorAll('[data-door]').length < Math.max(1, roomData.doors?.length || 1)) {
+            addDoor(room);
+          }
+
+          setRoomFields(room, roomData.fields);
+          updateNotApplicableSections(room);
+          toggleAccessoriesSection(room);
+          room.querySelectorAll('[data-accessories-fields] .row').forEach(toggleAccessoryStates);
+          setCompleted(room.querySelector('[data-room-toggle]'), roomData.completed);
+          Array.from(room.querySelectorAll('[data-section-toggle]')).forEach((toggle, index) => {
+            setCompleted(toggle, roomData.sections?.[index]);
+          });
+          Array.from(room.querySelectorAll('[data-wall]')).forEach((wall, index) => {
+            const wallData = roomData.walls?.[index];
+            setFields(wall, wallData?.fields || wallData);
+            wall.querySelectorAll('[data-baseboard-state-wrap]').forEach((wrapper) => {
+              toggleBaseboardState(wrapper.closest('.row'));
+            });
+            setCompleted(wall.querySelector('[data-wall-toggle]'), wallData?.completed);
+          });
+          Array.from(room.querySelectorAll('[data-socket]')).forEach((socket, index) => {
+            const socketData = roomData.sockets?.[index];
+            setFields(socket, socketData?.fields || socketData);
+            setCompleted(socket.querySelector('[data-socket-toggle]'), socketData?.completed);
+            toggleLampState(socket);
+          });
+          Array.from(room.querySelectorAll('[data-outlet]')).forEach((outlet, index) => {
+            const outletData = roomData.outlets?.[index];
+            setFields(outlet, outletData?.fields || outletData);
+            setCompleted(outlet.querySelector('[data-outlet-toggle]'), outletData?.completed);
+            outlet.querySelectorAll('[data-mirror-state-wrap]').forEach((wrapper) => {
+              toggleMirrorState(wrapper.closest('.row'), wrapper.dataset.mirrorStateWrap);
+            });
+          });
+          Array.from(room.querySelectorAll('[data-switch]')).forEach((switchItem, index) => {
+            const switchData = roomData.switches?.[index];
+            setFields(switchItem, switchData?.fields || switchData);
+            setCompleted(switchItem.querySelector('[data-switch-toggle]'), switchData?.completed);
+            switchItem.querySelectorAll('[data-mirror-state-wrap]').forEach((wrapper) => {
+              toggleMirrorState(wrapper.closest('.row'), wrapper.dataset.mirrorStateWrap);
+            });
+          });
+          Array.from(room.querySelectorAll('[data-window]')).forEach((windowItem, index) => {
+            const windowData = roomData.windows?.[index];
+            setFields(windowItem, windowData?.fields || windowData);
+            setCompleted(windowItem.querySelector('[data-window-toggle]'), windowData?.completed);
+            toggleWindowConditionalFields(windowItem);
+          });
+          Array.from(room.querySelectorAll('[data-door]')).forEach((door, index) => {
+            const doorData = roomData.doors?.[index];
+            setFields(door, doorData?.fields || doorData);
+            setCompleted(door.querySelector('[data-door-toggle]'), doorData?.completed);
+            toggleDoorConditionalFields(door);
+          });
+          room.querySelectorAll('[data-mirror-state-wrap]').forEach((wrapper) => {
+            toggleMirrorState(wrapper.closest('.row'), wrapper.dataset.mirrorStateWrap);
+          });
+        });
+
+        renumberRooms();
+      } finally {
+        isRestoring = false;
+        saveDraft();
+      }
+    }
+
+    function restoreDraft() {
+      const savedDraft = localStorage.getItem(storageKey);
+      if (!savedDraft) {
+        addRoom();
+        return;
+      }
+
+      try {
+        applyInspectionData(JSON.parse(savedDraft));
+      } catch (error) {
+        roomsContainer.innerHTML = '';
+        addRoom();
+      }
+    }
+
+    function importInspectionJson() {
+      const file = importInspectionInput.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          if (!Array.isArray(data.rooms)) {
+            throw new Error('Arquivo inválido');
+          }
+          applyInspectionData(data);
+        } catch (error) {
+          alert('Não foi possível importar a vistoria. Verifique se o arquivo JSON é válido.');
+        } finally {
+          importInspectionInput.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function renumberRooms() {
+      document.querySelectorAll('[data-room]').forEach((room, index) => {
+        room.dataset.roomIndex = index + 1;
+        updateRoomTitle(room);
+        renumberWalls(room);
+        renumberSockets(room);
+        renumberOutlets(room);
+        renumberSwitches(room);
+        renumberWindows(room);
+        renumberDoors(room);
+      });
+      updateRoomRemoveButtons();
+    }
+
+    function updateRoomTitle(room) {
+      const index = room.dataset.roomIndex || '';
+      const name = valueIn(room, 'roomName').trim();
+      const title = name ? `${index}: ${name}` : `Cômodo ${index}`;
+      room.querySelector('[data-room-title]').textContent = title;
+      room.querySelector('[data-room-ok]').textContent = `Finalizar ${title}`;
+    }
+
+    function renumberWalls(room) {
+      room.querySelectorAll('[data-wall]').forEach((wall, index) => {
+        const title = `Parede ${index + 1}`;
+        wall.querySelector('[data-wall-number]').textContent = index + 1;
+        wall.querySelector('[data-wall-ok]').textContent = `Finalizar ${title}`;
+      });
+      updateWallRemoveButtons(room);
+    }
+
+    function renumberSockets(room) {
+      room.querySelectorAll('[data-socket]').forEach((socket, index) => {
+        const title = `Bocal ${index + 1}`;
+        socket.querySelector('[data-socket-number]').textContent = index + 1;
+        socket.querySelector('[data-socket-ok]').textContent = `Finalizar ${title}`;
+      });
+      updateSocketRemoveButtons(room);
+    }
+
+    function renumberOutlets(room) {
+      room.querySelectorAll('[data-outlet]').forEach((outlet, index) => {
+        const title = `Tomada ${index + 1}`;
+        outlet.querySelector('[data-outlet-number]').textContent = index + 1;
+        outlet.querySelector('[data-outlet-ok]').textContent = `Finalizar ${title}`;
+      });
+      updateOutletRemoveButtons(room);
+    }
+
+    function renumberSwitches(room) {
+      room.querySelectorAll('[data-switch]').forEach((switchItem, index) => {
+        const title = `Interruptor ${index + 1}`;
+        switchItem.querySelector('[data-switch-number]').textContent = index + 1;
+        switchItem.querySelector('[data-switch-ok]').textContent = `Finalizar ${title}`;
+      });
+      updateSwitchRemoveButtons(room);
+    }
+
+    function renumberWindows(room) {
+      room.querySelectorAll('[data-window]').forEach((windowItem, index) => {
+        const title = `Janela ${index + 1}`;
+        windowItem.querySelector('[data-window-number]').textContent = index + 1;
+        windowItem.querySelector('[data-window-ok]').textContent = `Finalizar ${title}`;
+      });
+      updateWindowRemoveButtons(room);
+    }
+
+    function renumberDoors(room) {
+      room.querySelectorAll('[data-door]').forEach((door, index) => {
+        const title = `Porta ${index + 1}`;
+        door.querySelector('[data-door-number]').textContent = index + 1;
+        door.querySelector('[data-door-ok]').textContent = `Finalizar ${title}`;
+      });
+      updateDoorRemoveButtons(room);
+    }
+
+    function updateRoomRemoveButtons() {
+      const rooms = document.querySelectorAll('[data-room]');
+      rooms.forEach((room) => {
+        room.querySelector('[data-remove-room]').disabled = false;
+      });
+    }
+
+    function updateWallRemoveButtons(room) {
+      const walls = room.querySelectorAll('[data-wall]');
+      walls.forEach((wall) => {
+        wall.querySelector('[data-remove-wall]').disabled = false;
+      });
+    }
+
+    function updateSocketRemoveButtons(room) {
+      const sockets = room.querySelectorAll('[data-socket]');
+      sockets.forEach((socket) => {
+        socket.querySelector('[data-remove-socket]').disabled = false;
+      });
+    }
+
+    function updateOutletRemoveButtons(room) {
+      room.querySelectorAll('[data-outlet]').forEach((outlet) => {
+        outlet.querySelector('[data-remove-outlet]').disabled = false;
+      });
+    }
+
+    function updateSwitchRemoveButtons(room) {
+      room.querySelectorAll('[data-switch]').forEach((switchItem) => {
+        switchItem.querySelector('[data-remove-switch]').disabled = false;
+      });
+    }
+
+    function updateWindowRemoveButtons(room) {
+      room.querySelectorAll('[data-window]').forEach((windowItem) => {
+        windowItem.querySelector('[data-remove-window]').disabled = false;
+      });
+    }
+
+    function updateDoorRemoveButtons(room) {
+      room.querySelectorAll('[data-door]').forEach((door) => {
+        door.querySelector('[data-remove-door]').disabled = false;
+      });
+    }
+
+    function describeSurface(label, surface, includeTile) {
+      const parts = [];
+      if (includeTile) {
+        const baseboard = valueIn(surface, 'baseboard');
+        const baseboardState = baseboard !== 'Não' ? `, estado do rodapé: ${valueIn(surface, 'baseboardState').toLowerCase()}` : '';
+        parts.push(`azulejo: ${valueIn(surface, 'tile').toLowerCase()}`);
+        parts.push(`rodapé: ${baseboard.toLowerCase()}${baseboardState}`);
+      }
+      parts.push(`estado da pintura: ${valueIn(surface, 'paintState').toLowerCase()}`);
+      parts.push(`cor: ${valueIn(surface, 'color').toLowerCase()}`);
+      parts.push(`danos ou avarias: ${valueIn(surface, 'damage').toLowerCase()}`);
+      parts.push(`quantidade de furos: ${valueIn(surface, 'holes')}`);
+      const observation = valueIn(surface, 'surfaceObservation').trim();
+      if (observation) {
+        parts.push(`observação: ${observation}`);
+      }
+      return `${label}: ${parts.join(', ')}.`;
+    }
+
+    function describeFixture(label, room, prefix) {
+      const type = valueIn(room, `${prefix}Type`).toLowerCase();
+      const state = valueIn(room, `${prefix}State`).toLowerCase();
+      const mirror = valueIn(room, `${prefix}Mirror`);
+      const mirrorState = mirror === 'Sim' ? `, estado do espelho: ${valueIn(room, `${prefix}MirrorState`).toLowerCase()}` : '';
+      const painting = valueIn(room, `${prefix}Painting`).toLowerCase();
+      const observation = valueIn(room, `${prefix}Observation`).trim();
+      const observationText = observation ? `, observação: ${observation}` : '';
+      return `${label}: tipo ${type}, estado ${state}, espelho: ${mirror.toLowerCase()}${mirrorState}, pintura: ${painting}${observationText}.`;
+    }
+
+    function describeWindow(windowItem, index) {
+      const glassQuantity = Number(valueIn(windowItem, 'windowGlassQuantity'));
+      const glassState = glassQuantity > 0 ? `, estado do vidro: ${valueIn(windowItem, 'windowGlassState').toLowerCase()}` : '';
+      const gridState = valueIn(windowItem, 'windowExternalGrid') === 'Sim' ? `, estado da grade: ${valueIn(windowItem, 'windowGridState').toLowerCase()}` : '';
+      const screenState = valueIn(windowItem, 'windowExternalScreen') === 'Sim' ? `, estado da tela: ${valueIn(windowItem, 'windowScreenState').toLowerCase()}` : '';
+      const observation = valueIn(windowItem, 'windowObservation').trim();
+      const observationText = observation ? `, observações: ${observation}` : '';
+      return `Janela ${index + 1}: material ${valueIn(windowItem, 'windowMaterial').toLowerCase()}, estado da janela: ${valueIn(windowItem, 'windowState').toLowerCase()}, pintura: ${valueIn(windowItem, 'windowPainting').toLowerCase()}, quantidade de vidros: ${glassQuantity}${glassState}, grade externa: ${valueIn(windowItem, 'windowExternalGrid').toLowerCase()}${gridState}, tela externa: ${valueIn(windowItem, 'windowExternalScreen').toLowerCase()}${screenState}${observationText}.`;
+    }
+
+    function describeDoor(door, index) {
+      const handleState = valueIn(door, 'doorHandle') === 'Sim' ? `, estado da maçaneta: ${valueIn(door, 'doorHandleState').toLowerCase()}` : '';
+      const lockState = valueIn(door, 'doorLock') === 'Sim' ? `, estado da fechadura: ${valueIn(door, 'doorLockState').toLowerCase()}` : '';
+      const observation = valueIn(door, 'doorObservation').trim();
+      const observationText = observation ? `, observações: ${observation}` : '';
+      return `Porta ${index + 1}: tipo ${valueIn(door, 'doorType').toLowerCase()}, material ${valueIn(door, 'doorMaterial').toLowerCase()}, estado da porta: ${valueIn(door, 'doorState').toLowerCase()}, pintura: ${valueIn(door, 'doorPainting').toLowerCase()}, maçaneta: ${valueIn(door, 'doorHandle').toLowerCase()}${handleState}, fechadura: ${valueIn(door, 'doorLock').toLowerCase()}${lockState}, quantidade de chaves: ${valueIn(door, 'doorKeyQuantity')}${observationText}.`;
+    }
+
+    function describeAccessories(room) {
+      const labels = {
+        sink: 'Pia',
+        toilet: 'Vaso',
+        shower: 'Chuveiro',
+        box: 'Box'
+      };
+      const accessories = visibleAccessoryFields(room).map((field) => {
+        const label = labels[field];
+        const present = valueIn(room, `${field}Present`);
+        const state = present === 'Sim' ? `, estado: ${valueIn(room, `${field}State`).toLowerCase()}` : '';
+        return `${label}: ${present.toLowerCase()}${state}`;
+      });
+      const observation = valueIn(room, 'accessoriesObservation').trim();
+      const observationText = observation ? `; observação: ${observation}` : '';
+      return `Acessórios: ${accessories.join('; ')}${observationText}.`;
+    }
+
+    function addSectionReportLine(room, lines, title, builder, shouldInclude = true) {
+      if (!shouldInclude) {
+        return;
+      }
+
+      if (sectionNotApplicable(room, title)) {
+        lines.push(`  • ${notApplicableText(room, title)}`);
+        return;
+      }
+
+      builder();
+    }
+
+    function generateRoomParagraph(room, index) {
+      const roomName = valueIn(room, 'roomName').trim() || `Cômodo ${index + 1}`;
+      const lines = [`• ${roomName}:`];
+
+      addSectionReportLine(room, lines, 'Piso', () => {
+        const floorObservation = valueIn(room, 'floorObservation').trim();
+        const floorObservationText = floorObservation ? `, observação: ${floorObservation}` : '';
+        lines.push(`  • Piso: tipo ${valueIn(room, 'floorType').toLowerCase()}, estado ${valueIn(room, 'floorState').toLowerCase()}, danos ou avarias: ${valueIn(room, 'floorDamage').toLowerCase()}, cor: ${valueIn(room, 'floorColor').toLowerCase()}${floorObservationText}.`);
+      });
+
+      addSectionReportLine(room, lines, 'Paredes', () => {
+        const walls = Array.from(room.querySelectorAll('[data-wall]'));
+        if (walls.length) {
+          const wallTexts = walls.map((wall, wallIndex) => describeSurface(`Parede ${wallIndex + 1}`, wall, true));
+          const wallsObservation = valueIn(room, 'wallsObservation').trim();
+          if (wallsObservation) {
+            wallTexts.push(`Observação das paredes: ${wallsObservation}.`);
+          }
+          lines.push(`  • ${wallTexts.join(' ')}`);
+        }
+      });
+
+      addSectionReportLine(room, lines, 'Teto', () => {
+        lines.push(`  • ${describeSurface('Teto', room.querySelector('[data-ceiling-fields]'), false)}`);
+      });
+
+      addSectionReportLine(room, lines, 'Bocais', () => {
+        const sockets = Array.from(room.querySelectorAll('[data-socket]'));
+        if (sockets.length) {
+          const socketTexts = sockets.map((socket, socketIndex) => {
+            const hasLamp = valueIn(socket, 'hasLamp');
+            const lampState = hasLamp === 'Sim' ? `, estado da lâmpada: ${valueIn(socket, 'lampState').toLowerCase()}` : '';
+            const observation = valueIn(socket, 'socketObservation').trim();
+            const observationText = observation ? `, observação: ${observation}` : '';
+            return `Bocal ${socketIndex + 1}: tipo ${valueIn(socket, 'socketType').toLowerCase()}, danos: ${valueIn(socket, 'socketDamage').toLowerCase()}, estado: ${valueIn(socket, 'socketState').toLowerCase()}, lâmpada: ${hasLamp.toLowerCase()}${lampState}, funcionando: ${valueIn(socket, 'lampWorking').toLowerCase()}${observationText}.`;
+          });
+          const socketsObservation = valueIn(room, 'socketsObservation').trim();
+          if (socketsObservation) {
+            socketTexts.push(`Observação dos bocais: ${socketsObservation}.`);
+          }
+          lines.push(`  • ${socketTexts.join(' ')}`);
+        }
+      });
+
+      addSectionReportLine(room, lines, 'Janelas', () => {
+        const windows = Array.from(room.querySelectorAll('[data-window]'));
+        if (windows.length) {
+          lines.push(`  • ${windows.map(describeWindow).join(' ')}`);
+        }
+      });
+
+      addSectionReportLine(room, lines, 'Portas', () => {
+        const doors = Array.from(room.querySelectorAll('[data-door]'));
+        if (doors.length) {
+          lines.push(`  • ${doors.map(describeDoor).join(' ')}`);
+        }
+      });
+
+      addSectionReportLine(room, lines, 'Tomadas', () => {
+        const outlets = Array.from(room.querySelectorAll('[data-outlet]'));
+        if (outlets.length) {
+          lines.push(`  • ${outlets.map((outlet, outletIndex) => describeFixture(`Tomada ${outletIndex + 1}`, outlet, 'outlet')).join(' ')}`);
+        }
+      });
+
+      addSectionReportLine(room, lines, 'Interruptores', () => {
+        const switches = Array.from(room.querySelectorAll('[data-switch]'));
+        if (switches.length) {
+          lines.push(`  • ${switches.map((switchItem, switchIndex) => describeFixture(`Interruptor ${switchIndex + 1}`, switchItem, 'switch')).join(' ')}`);
+        }
+      });
+
+      const accessoriesVisible = !room.querySelector('[data-accessories-section]').classList.contains('d-none');
+      addSectionReportLine(room, lines, 'Acessórios', () => {
+        lines.push(`  • ${describeAccessories(room)}`);
+      }, accessoriesVisible);
+
+      const observation = valueIn(room, 'observation').trim();
+      if (observation) {
+        lines.push(`  • Observação: ${observation}.`);
+      }
+
+      return lines.join('\n');
+    }
+
+    function generateReport() {
+      const rooms = Array.from(document.querySelectorAll('[data-room]'));
+      if (!rooms.length) {
+        addRoom();
+      }
+
+      const inspectionName = inspectionNameInput.value.trim() || 'Vistoria';
+      const roomReport = Array.from(document.querySelectorAll('[data-room]'))
+        .map(generateRoomParagraph)
+        .join('\n\n');
+      pendingReport = `${inspectionName}\n\n${roomReport}`;
+
+      reportPreview.textContent = pendingReport;
+      reportFeedback.textContent = '';
+      reportFeedback.className = 'form-text mt-2';
+      reportModal.show();
+    }
+
+    async function confirmReport() {
+      try {
+        await navigator.clipboard.writeText(pendingReport);
+      } catch (error) {
+        copyTextFallback(pendingReport);
+      }
+
+      downloadWordFile(pendingReport);
+      localStorage.removeItem(storageKey);
+      reportFeedback.textContent = 'Relatório copiado para a área de transferência e arquivo DOCX gerado.';
+      reportFeedback.className = 'form-text mt-2 text-success';
+      setTimeout(() => reportModal.hide(), 400);
+    }
+
+    function copyTextFallback(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+
+    function escapeXml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    }
+
+    function fileSafeName(text) {
+      return (text || 'vistoria')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase() || 'vistoria';
+    }
+
+    function downloadInspectionJson() {
+      const data = buildInspectionData();
+      const date = new Date().toISOString().slice(0, 10);
+      const name = fileSafeName(data.inspectionName || 'vistoria');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${name}-${date}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      reportFeedback.textContent = 'Arquivo JSON da vistoria salvo.';
+      reportFeedback.className = 'form-text mt-2 text-primary';
+    }
+
+    function crc32(bytes) {
+      if (!crc32.table) {
+        crc32.table = Array.from({ length: 256 }, (_, index) => {
+          let crc = index;
+          for (let bit = 0; bit < 8; bit += 1) {
+            crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);
+          }
+          return crc >>> 0;
+        });
+      }
+
+      let crc = 0xffffffff;
+      bytes.forEach((byte) => {
+        crc = crc32.table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+      });
+      return (crc ^ 0xffffffff) >>> 0;
+    }
+
+    function uint16(value) {
+      return [value & 0xff, (value >>> 8) & 0xff];
+    }
+
+    function uint32(value) {
+      return [value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff];
+    }
+
+    function concatBytes(parts) {
+      const total = parts.reduce((sum, part) => sum + part.length, 0);
+      const output = new Uint8Array(total);
+      let offset = 0;
+      parts.forEach((part) => {
+        output.set(part, offset);
+        offset += part.length;
+      });
+      return output;
+    }
+
+    function createZip(files) {
+      const encoder = new TextEncoder();
+      const localParts = [];
+      const centralParts = [];
+      let offset = 0;
+
+      files.forEach((file) => {
+        const nameBytes = encoder.encode(file.name);
+        const data = typeof file.data === 'string' ? encoder.encode(file.data) : file.data;
+        const crc = crc32(data);
+        const localHeader = new Uint8Array([
+          ...uint32(0x04034b50), ...uint16(20), ...uint16(0x0800), ...uint16(0),
+          ...uint16(0), ...uint16(0), ...uint32(crc), ...uint32(data.length),
+          ...uint32(data.length), ...uint16(nameBytes.length), ...uint16(0)
+        ]);
+        localParts.push(localHeader, nameBytes, data);
+
+        const centralHeader = new Uint8Array([
+          ...uint32(0x02014b50), ...uint16(20), ...uint16(20), ...uint16(0x0800),
+          ...uint16(0), ...uint16(0), ...uint16(0), ...uint32(crc), ...uint32(data.length),
+          ...uint32(data.length), ...uint16(nameBytes.length), ...uint16(0), ...uint16(0),
+          ...uint16(0), ...uint16(0), ...uint32(0), ...uint32(offset)
+        ]);
+        centralParts.push(centralHeader, nameBytes);
+        offset += localHeader.length + nameBytes.length + data.length;
+      });
+
+      const centralDirectory = concatBytes(centralParts);
+      const endRecord = new Uint8Array([
+        ...uint32(0x06054b50), ...uint16(0), ...uint16(0), ...uint16(files.length),
+        ...uint16(files.length), ...uint32(centralDirectory.length), ...uint32(offset), ...uint16(0)
+      ]);
+      return concatBytes([...localParts, centralDirectory, endRecord]);
+    }
+
+    function paragraphXml(text, options = {}) {
+      const indent = options.indent ? `<w:ind w:left="${options.indent}"/>` : '';
+      const spacing = options.after === 0 ? '<w:spacing w:after="0"/>' : '<w:spacing w:after="160"/>';
+      const bold = options.bold ? '<w:b/>' : '';
+      return `<w:p><w:pPr>${spacing}${indent}</w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="22"/>${bold}</w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+    }
+
+    function createDocumentXml(text) {
+      const reportParts = text.split(/\n\s*\n/);
+      const title = reportParts.shift() || 'Vistoria';
+      const paragraphs = [paragraphXml(title, { bold: true })];
+
+      reportParts.forEach((roomText) => {
+        const lines = roomText.split('\n').filter(Boolean);
+        lines.forEach((line, index) => {
+          const isInner = /^\s+•/.test(line);
+          const cleanLine = line.replace(/^\s*•\s*/, '');
+          paragraphs.push(paragraphXml(`• ${cleanLine}`, {
+            bold: index === 0,
+            indent: isInner ? 720 : 360
+          }));
+        });
+        paragraphs.push(paragraphXml('', { after: 0 }));
+      });
+
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${paragraphs.join('\n')}
+    <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>
+  </w:body>
+</w:document>`;
+    }
+
+    function downloadWordFile(text) {
+      const title = text.split(/\n\s*\n/)[0] || 'Vistoria';
+      const files = [
+        {
+          name: '[Content_Types].xml',
+          data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`
+        },
+        {
+          name: '_rels/.rels',
+          data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`
+        },
+        {
+          name: 'word/document.xml',
+          data: createDocumentXml(text)
+        }
+      ];
+      const blob = new Blob([createZip(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const date = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `${fileSafeName(title)}-${date}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    restoreDraft();
+  </script>
+</body>
+</html>
